@@ -1,0 +1,83 @@
+name: Build and Release Weather App
+
+on:
+  push:
+    branches:
+      - main
+      - feature/github_actions
+
+env:
+  Version_Release: "0.1"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 and Install Dependencies
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-charts
+            mingw-w64-x86_64-ntldd
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Project
+        run: cmake --build build --config Release
+
+      - name: Prepare Release Folder & Deploy
+        run: |
+          mkdir weather_app
+          cp build/weather_app.exe weather_app/
+
+          if [ -f "data/cities.db" ]; then
+            cp data/cities.db weather_app/
+          else
+            echo "Ошибка: data/cities.db не найден"
+            exit 1
+          fi
+
+          # Разворачиваем плагины Qt (библиотеки компилятора пропускаем флагом)
+          /mingw64/bin/windeployqt6.exe --no-translations --no-compiler-runtime weather_app/weather_app.exe
+
+          # чистый сбор всех зависимостей MinGW через basename
+          ntldd -R weather_app/weather_app.exe \
+            | grep -i 'mingw64' \
+            | awk '{print $3}' \
+            | while read -r path; do
+                filename=$(basename "$path")
+                cp -n "/mingw64/bin/$filename" weather_app/ 2>/dev/null || true
+              done
+
+      - name: Archive Release Folder (Zip)
+        shell: powershell
+        run: |
+          Compress-Archive -Path weather_app -DestinationPath weather_app.zip
+
+      - name: Create GitHub Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: weather_app.zip
+          tag_name: v${{ env.Version_Release }}
+          name: Release v${{ env.Version_Release }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
