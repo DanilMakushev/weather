@@ -3,14 +3,13 @@
 #include <QList>
 #include <QString>
 #include <QCompleter>
-#include <QSqlQueryModel>
-#include <QSqlDatabase>
 #include <QLabel>
 #include <QTimer>
 #include "weatherdata.h"
 #include "weatherservice.h"
 #include "filemanager.h"
 #include "weatherchart.h"
+#include "databasemanager.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -54,7 +53,6 @@ private:
     void InitTimers();
     void SetupConnections();
     void LoadInitialData();
-    void SetupCityRegionCompleter();
 
     // Навигация и управление состоянием
     void GoToCitySelection();
@@ -83,7 +81,7 @@ private:
     WeatherService* _weatherService;
     FileManager* _fileManager;
     WeatherChart* _weatherChart = nullptr;
-    QSqlDatabase _citiesDb;
+    DatabaseManager* _dbManager;
     QTimer*  _timerDateTime;
     QTimer* _timerWeather;
     QTimer* _timerCheckInternet;

@@ -24,6 +24,8 @@ qt_add_executable(weather_app
     forecastdata.h
     weatherchart.h
     weatherchart.cpp
+    databasemanager.h
+    databasemanager.cpp
 )
 
 target_link_libraries(weather_app

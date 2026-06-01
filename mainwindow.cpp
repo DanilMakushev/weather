@@ -1,6 +1,5 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include <QSqlError>
 #include <cmath>
 #include "forecastdata.h"
 #include "weatherchart.h"
@@ -129,12 +128,33 @@ void MainWindow::InitUiCollections() {
 
 
 void MainWindow::InitDatabase() {
-    _citiesDb = QSqlDatabase::addDatabase("QSQLITE");
-    _citiesDb.setDatabaseName(DB_NAME);
-    if (!_citiesDb.open())
-        qWarning() << "Не удалось открыть базу данных городов: " << _citiesDb.lastError().text();
+    _dbManager = new DatabaseManager(DB_NAME, this);
 
-    SetupCityRegionCompleter();
+    QSqlQueryModel* cityModel = _dbManager->GetCitiesModel();
+
+    auto* completer = new QCompleter(cityModel, this);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchStartsWith);
+    _ui->lineEditCityName->setCompleter(completer);
+
+    connect(completer, qOverload<const QString&>(&QCompleter::activated),
+            this, [this](const QString& fullText) {
+                const QStringList parts = fullText.split(", ");
+                if (parts.size() >= 2) {
+                    _weatherService->SetCity(parts[0]);
+                    _weatherService->SetRegion(parts[1]);
+                    _ui->confirmManuallyButton->show();
+                }
+            });
+
+    connect(_ui->lineEditCityName, &QLineEdit::textEdited, this, [this]() {
+        if (_ui->confirmManuallyButton->isVisible()) {
+            _weatherService->SetCity("");
+            _weatherService->SetRegion("");
+            _ui->confirmManuallyButton->hide();
+        }
+    });
 }
 
 
@@ -256,35 +276,6 @@ void MainWindow::GoToApiKeyInput() {
     _ui->apiKeyLineEdit->setPlaceholderText("Введите ваш API ключ");
 }
 
-
-void MainWindow::SetupCityRegionCompleter() {
-    auto* cityModel = new QSqlQueryModel(this);
-    cityModel->setQuery("SELECT name || ', ' || region FROM cities ORDER BY name");
-
-    auto* completer = new QCompleter(cityModel, this);
-    completer->setCompletionMode(QCompleter::PopupCompletion);
-    completer->setCaseSensitivity(Qt::CaseInsensitive);
-    completer->setFilterMode(Qt::MatchStartsWith);
-    _ui->lineEditCityName->setCompleter(completer);
-
-    connect(completer, QOverload<const QString&>::of(&QCompleter::activated),
-            this, [this](const QString& fullText) {
-                const QStringList parts = fullText.split(", ");
-                if (parts.size() >= 2) {
-                    _weatherService->SetCity(parts[0]);
-                    _weatherService->SetRegion(parts[1]);
-                    _ui->confirmManuallyButton->show();
-                }
-            });
-
-    connect(_ui->lineEditCityName, &QLineEdit::textEdited, this, [this]() {
-        if (_ui->confirmManuallyButton->isVisible()) {
-            _weatherService->SetCity("");
-            _weatherService->SetRegion("");
-            _ui->confirmManuallyButton->hide();
-        }
-    });
-}
 
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event) {
@@ -651,7 +642,7 @@ void MainWindow::OnTimerCheckInternetTick(){
 
 
 void MainWindow::SetStyle(const QString& theme) {
-    if (theme == "dark" && theme != "light") {
+    if (theme == "dark") {
         this->setStyleSheet(R"(
             /* основной фон */
             QMainWindow, #centralwidget {
@@ -670,7 +661,7 @@ void MainWindow::SetStyle(const QString& theme) {
             }
 
             /* поля ввода */
-            QLineEdit#lineEditCityName {
+            QLineEdit#lineEditCityName, QLineEdit#apiKeyLineEdit {
                 background-color: #3a3a3a;
                 color: #ffffff;
                 placeholder-text-color: #adadad;
@@ -679,7 +670,7 @@ void MainWindow::SetStyle(const QString& theme) {
                 padding: 0px 10px;
             }
 
-            QLineEdit#lineEditCityName:focus {
+            QLineEdit#lineEditCityName, QLineEdit#apiKeyLineEdit:focus {
                 border: 1px solid #00a8ff;
             }
 
@@ -705,7 +696,7 @@ void MainWindow::SetStyle(const QString& theme) {
             }
 
             /* frame */
-            #suggestFrame, #WeatherTodayframe, #forecastFrame, #detailFrame, #detailDateFrame {
+            #suggestFrame, #weatherTodayFrame, #forecastFrame, #detailFrame, #detailDateFrame, #frame {
                 background-color: #323232;
                 border: 1px solid #444444;
                 border-radius: 8px;
@@ -717,7 +708,7 @@ void MainWindow::SetStyle(const QString& theme) {
             }
         )");
     }
-    else if (theme == "light") {
+    else {
         this->setStyleSheet(R"(
             /* основной фон */
             QMainWindow, #stackedWidget {
@@ -736,8 +727,8 @@ void MainWindow::SetStyle(const QString& theme) {
             }
 
             /* поля ввода */
-            QLineEdit #lineEditCityName #apiKeyLineEdit {
-                background-color: #aaa;
+            QLineEdit#lineEditCityName, QLineEdit#apiKeyLineEdit {
+                background-color: #979797;
                 color: #000;
                 placeholder-text-color: #1a1a1a;
                 border: 1px solid #555555;
@@ -783,8 +774,8 @@ void MainWindow::SetStyle(const QString& theme) {
             }
 
             /* frame */
-            #suggestFrame, #weatherTodayframe, #forecastFrame, #detailFrame, #detailDateFrame, #frame {
-                background-color: #a3a3a3;
+            #suggestFrame, #weatherTodayFrame, #forecastFrame, #detailFrame, #detailDateFrame, #frame {
+                background-color: #979797;
                 border: 1px solid #444444;
                 border-radius: 8px;
             }

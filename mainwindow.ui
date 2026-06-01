@@ -61,7 +61,7 @@
      <bool>false</bool>
     </property>
     <property name="currentIndex">
-     <number>4</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="startPage">
      <property name="cursor">
@@ -307,7 +307,7 @@
        <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
       </property>
      </widget>
-     <widget class="QFrame" name="weatherTodayframe">
+     <widget class="QFrame" name="weatherTodayFrame">
       <property name="geometry">
        <rect>
         <x>100</x>
