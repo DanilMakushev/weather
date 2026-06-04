@@ -1,6 +1,8 @@
 #include "databasemanager.h"
 #include <QSqlError>
 #include <QDebug>
+#include <QCoreApplication>
+#include <QFileInfo>
 
 DatabaseManager::DatabaseManager(const QString& dbName, QObject *parent) : QObject(parent) {
     InitDatabase(dbName);

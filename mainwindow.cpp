@@ -14,8 +14,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), _ui(new Ui::MainW
 {
     _ui->setupUi(this);
     InitUiCollections();
-    InitDatabase();
     SetupConnections();
+    InitDatabase(); 
     InitUiSettings();
     InitTimers();
     LoadInitialData();
@@ -234,22 +234,30 @@ void MainWindow::LoadInitialData() {
         _weatherService->SetRegion(region);
         _weatherService->SetApiKey(apiKey);
 
-        if (theme == "dark") _ui->darkRadioButton->setChecked(true);
-        else _ui->lightRadioButton->setChecked(true);
-        SetStyle(theme);
+        if (theme == "light") {
+            _ui->lightRadioButton->setChecked(true);
+            SetStyle("light");
+            _theme = "light";
+        } else {
+            _ui->darkRadioButton->setChecked(true);
+            SetStyle("dark");
+            _theme = "dark";
+        }
 
         if (_weatherService->IsInternetAvailable()) {
             _weatherService->RequestData();
         } else {
-            // Загружаем кешированные данные при отсутствии сети
             _weatherTodayList = _fileManager->ReadWeatherFromFile(FILE_WEATHER_TODAY);
             _forecastList = _fileManager->ReadWeatherFromFile(FILE_FORECAST);
             ShowTodayWeather(false);
             ShowForecast(false);
         }
     } else {
+        _ui->darkRadioButton->setChecked(true); 
+        _theme = "dark"; 
+        
         _ui->backButton->hide();
-        GoToApiKeyInput(); // первый запуск — запрашиваем API-ключ
+        GoToApiKeyInput(); 
     }
 }
 

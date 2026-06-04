@@ -40,6 +40,4 @@ target_link_libraries(weather_app
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data/cities.db")
     file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/data/cities.db"
          DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
-else()
-    message(WARNING "Внимание: Файл базы данных 'cities.db' не найден!")
 endif()
