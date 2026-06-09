@@ -78,10 +78,10 @@ private:
 
     // Данные
     Ui::MainWindow*  _ui;
-    WeatherService* _weatherService;
-    FileManager* _fileManager;
+    WeatherService* _weatherService = nullptr;
+    FileManager* _fileManager = nullptr;
     WeatherChart* _weatherChart = nullptr;
-    DatabaseManager* _dbManager;
+    DatabaseManager* _dbManager = nullptr;
     QTimer*  _timerDateTime;
     QTimer* _timerWeather;
     QTimer* _timerCheckInternet;
@@ -113,10 +113,7 @@ private:
     const QString FILE_FORECAST = "forecast";
 
     bool eventFilter(QObject *obj, QEvent *event) override;
-<<<<<<< Updated upstream
-=======
 
     // Флаги
     bool _wasInternetAvailable = true; // Хранит статус интернета на предыдущем шаге
->>>>>>> Stashed changes
 };

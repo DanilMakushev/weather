@@ -15,8 +15,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), _ui(new Ui::MainW
 {
     _ui->setupUi(this);
     InitUiCollections();
-    InitDatabase();
     SetupConnections();
+    InitDatabase(); 
     InitUiSettings();
     InitTimers();
     LoadInitialData();
@@ -237,18 +237,6 @@ void MainWindow::LoadInitialData() {
         return;
     }
 
-<<<<<<< Updated upstream
-        if (theme == "dark") _ui->darkRadioButton->setChecked(true);
-        else _ui->lightRadioButton->setChecked(true);
-        SetStyle(theme);
-
-        if (_weatherService->IsInternetAvailable()) {
-            _weatherService->RequestData();
-        } else {
-            // Загружаем кешированные данные при отсутствии сети
-            _weatherTodayList = _fileManager->ReadWeatherFromFile(FILE_WEATHER_TODAY);
-            _forecastList = _fileManager->ReadWeatherFromFile(FILE_FORECAST);
-=======
     // Конфиг есть — применяем настройки
     _weatherService->SetCity(city);
     _weatherService->SetRegion(region);
@@ -280,17 +268,10 @@ void MainWindow::LoadInitialData() {
             return;
         }
         else {
->>>>>>> Stashed changes
             ShowTodayWeather(false);
             ShowForecast(false);
             NoInternet();
         }
-<<<<<<< Updated upstream
-    } else {
-        _ui->backButton->hide();
-        GoToApiKeyInput(); // первый запуск — запрашиваем API-ключ
-=======
->>>>>>> Stashed changes
     }
     _timerCheckInternet->start(TIMER_CHECK_INTERNET_MS);
 }
