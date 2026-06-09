@@ -3,6 +3,7 @@
 #include <cmath>
 #include "forecastdata.h"
 #include "weatherchart.h"
+#include <QAbstractItemView>
 
 
 // ==========================================
@@ -131,7 +132,6 @@ void MainWindow::InitDatabase() {
     _dbManager = new DatabaseManager(DB_NAME, this);
 
     QSqlQueryModel* cityModel = _dbManager->GetCitiesModel();
-
     auto* completer = new QCompleter(cityModel, this);
     completer->setCompletionMode(QCompleter::PopupCompletion);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
@@ -162,14 +162,13 @@ void MainWindow::InitTimers() {
     _timerDateTime = new QTimer(this);
     connect(_timerDateTime, &QTimer::timeout, this, &MainWindow::OnTimerDateTimeTick);
     _timerDateTime->start(TIMER_DATETIME_MS);
-    OnTimerDateTimeTick(); // сразу отображаем время
+    OnTimerDateTimeTick();
 
     _timerWeather = new QTimer(this);
     connect(_timerWeather, &QTimer::timeout, this, &MainWindow::OnTimerWeatherTick);
     _timerWeather->start(TIMER_WEATHER_MS);
 
     _timerCheckInternet = new QTimer(this);
-    _timerCheckInternet->start(TIMER_CHECK_INTERNET_MS);
     connect(_timerCheckInternet, &QTimer::timeout, this, &MainWindow::OnTimerCheckInternetTick);
 }
 
@@ -229,11 +228,16 @@ void MainWindow::SetupConnections() {
 void MainWindow::LoadInitialData() {
     QString city, region, apiKey, theme;
 
-    if (_fileManager->ReadMainFromFile(city, region, apiKey, theme)) {
-        _weatherService->SetCity(city);
-        _weatherService->SetRegion(region);
-        _weatherService->SetApiKey(apiKey);
+    if (!_fileManager->ReadMainFromFile(city, region, apiKey, theme)) {
+        // первый запуск, идём на настройку
+        _ui->darkRadioButton->setChecked(true);
+        _theme = "dark";
+        _ui->backButton->hide();
+        GoToApiKeyInput();
+        return;
+    }
 
+<<<<<<< Updated upstream
         if (theme == "dark") _ui->darkRadioButton->setChecked(true);
         else _ui->lightRadioButton->setChecked(true);
         SetStyle(theme);
@@ -244,13 +248,51 @@ void MainWindow::LoadInitialData() {
             // Загружаем кешированные данные при отсутствии сети
             _weatherTodayList = _fileManager->ReadWeatherFromFile(FILE_WEATHER_TODAY);
             _forecastList = _fileManager->ReadWeatherFromFile(FILE_FORECAST);
+=======
+    // Конфиг есть — применяем настройки
+    _weatherService->SetCity(city);
+    _weatherService->SetRegion(region);
+    _weatherService->SetApiKey(apiKey);
+
+    if (theme == "light") {
+        _ui->lightRadioButton->setChecked(true);
+        SetStyle("light");
+        _theme = "light";
+    }
+    else {
+        _ui->darkRadioButton->setChecked(true);
+        SetStyle("dark");
+        _theme = "dark";
+    }
+
+    // Загружаем кэш из файлов
+    _weatherTodayList = _fileManager->ReadWeatherFromFile(FILE_WEATHER_TODAY);
+    _forecastList = _fileManager->ReadWeatherFromFile(FILE_FORECAST);
+
+    if (_weatherService->IsInternetAvailable()) {
+        _weatherService->RequestData();
+    }
+    else {
+        // Нет интернета — показываем кэш
+        if (_weatherTodayList.isEmpty() || _forecastList.isEmpty()) {
+            _ui->stackedWidget->setCurrentIndex(0);
+            _ui->startLabel->setText("Попробуйте позже с Интернет соединением");
+            return;
+        }
+        else {
+>>>>>>> Stashed changes
             ShowTodayWeather(false);
             ShowForecast(false);
+            NoInternet();
         }
+<<<<<<< Updated upstream
     } else {
         _ui->backButton->hide();
         GoToApiKeyInput(); // первый запуск — запрашиваем API-ключ
+=======
+>>>>>>> Stashed changes
     }
+    _timerCheckInternet->start(TIMER_CHECK_INTERNET_MS);
 }
 
 
@@ -326,7 +368,6 @@ void MainWindow::OnForecastListReady(const QList<WeatherData>& list) {
     _forecastList = list;
     _fileManager->WriteWeatherToFile(_forecastList, FILE_FORECAST);
     ShowForecast(true);
-    OnDayFrameClicked(0);
 }
 
 
@@ -351,15 +392,15 @@ void MainWindow::OnConfirmApiKeyClicked() {
 }
 
 
-void MainWindow::OnApiKeyValidationResult(bool success) {
+void MainWindow::OnApiKeyValidationResult(bool success, const QString& errorMsg) {
     _ui->confirmApiKeyButton->setEnabled(true);
 
     if (!success) {
         _ui->apiKeyLineEdit->clear();
-        _ui->apiKeyLineEdit->setPlaceholderText("Ошибка: некорректный ключ");
+        _ui->apiKeyLineEdit->setPlaceholderText(errorMsg);
         _ui->apiKeyLineEdit->clearFocus();
         setFocus();
-        qDebug() << "Введен некорректный API ключ";
+        qDebug() << "Не удалось проверить ключ:" << errorMsg;
         return;
     }
 
@@ -384,10 +425,10 @@ void MainWindow::OnConfirmManuallyButtonClicked() {
 }
 
 
-void MainWindow::OnDayFrameClicked(int dayIndex){
-    if (_forecastList.isEmpty()) return;
+void MainWindow::OnDayFrameClicked(int dayIndex) {
+    if (_forecastList.isEmpty() || dayIndex < 0) return;
 
-    // Очищаем labels перед новым отображением
+    // 1 Очищаем labels перед новым отображением
     _ui->detailDate->setText("--:--");
     for (int i = 0; i < 8; ++i) {
         _detailHourTimeLabels[i]->setText("--:--");
@@ -395,66 +436,53 @@ void MainWindow::OnDayFrameClicked(int dayIndex){
         _detailHourTemperatureLabels[i]->setText("--");
     }
 
-    // Собираем список уникальных дат, которые есть в общем прогнозе
-    const auto& forecast = _forecastList;
-    QStringList uniqueDates;
-    for (const WeatherData& item : forecast) { // Цикл стал чистым
-        QString dateKey = QDateTime::fromSecsSinceEpoch(item._dt).date().toString("yyyy-MM-dd");
-        if (!uniqueDates.contains(dateKey)) {
-            uniqueDates.append(dateKey);
-        }
-    }
-
-    // Защита от выхода за границы списка дней
-    if (dayIndex >= uniqueDates.size()) return;
-    QString targetDateStr = uniqueDates[dayIndex]; // Наша целевая дата (например, "2026-05-30")
-
-    // Вытаскиваем из общего списка только те 3-часовые слоты, которые принадлежат этой дате
-    QList<WeatherData> daySlots;
+    // 2 Группируем хронологический список прогноза по дням
+    QList<QList<WeatherData>> days;
     for (const WeatherData& item : _forecastList) {
-        QString itemDate = QDateTime::fromSecsSinceEpoch(item._dt).date().toString("yyyy-MM-dd");
-        if (itemDate == targetDateStr) {
-            daySlots.append(item);
+        QDate itemDate = QDateTime::fromSecsSinceEpoch(item._dt).date();
+
+        // Если это первый элемент или наступил новый день — создаем новую группу
+        if (days.isEmpty() || QDateTime::fromSecsSinceEpoch(days.last().first()._dt).date() != itemDate) {
+            days.append(QList<WeatherData>());
         }
+        days.last().append(item);
     }
 
-    if (daySlots.isEmpty()) return;
+    // Проверка на выход за границы найденных дней
+    if (dayIndex >= days.size()) return;
+    const auto& daySlots = days[dayIndex];
 
-    // Выводим текст даты
-    QDateTime firstSlotTime = QDateTime::fromSecsSinceEpoch(daySlots.first()._dt);
+    // 3 Форматируем и выводим заголовок даты
+    QDate date = QDateTime::fromSecsSinceEpoch(daySlots.first()._dt).date();
     QLocale ruLocale(QLocale::Russian);
 
-    // Формат "dddd, d MMMM" сделает строку вида "суббота, 30 мая"
-    QString dateTitle = ruLocale.toString(firstSlotTime.date(), "dddd, d MMMM");
-    if (!dateTitle.isEmpty()) {
-        dateTitle[0] = dateTitle[0].toUpper(); // Делаем первую букву дня недели заглавной
+    QString dateTitle;
+    if(dayIndex == 0){
+        if(ruLocale.toString(date, "d MMMM") == ruLocale.toString(QDate::currentDate(), "d MMMM")){
+            dateTitle = "Сегодня, " + ruLocale.toString(date, "d MMMM");
+        }
+        else{
+            dateTitle = ruLocale.toString(date, "dddd, d MMMM");
+        }
+    }
+    else{
+        dateTitle = ruLocale.toString(date, "dddd, d MMMM");
     }
 
-    if (dayIndex == 0) {
-        dateTitle = "Сегодня, " + ruLocale.toString(firstSlotTime.date(), "d MMMM");
+    if (!dateTitle.isEmpty()) {
+        dateTitle[0] = dateTitle[0].toUpper(); // Делаем первую букву заглавной
     }
     _ui->detailDate->setText(dateTitle);
 
-    // Распределяем данные
-    for (int i = 0; i < 8; ++i) {
-        if (i < daySlots.size()) {
-            // Данные для этого шага времени есть — выводим их
-            const WeatherData& slot = daySlots[i];
-            QDateTime slotTime = QDateTime::fromSecsSinceEpoch(slot._dt);
+    // 4 Заполняем только те слоты времени, которые у нас есть (максимум 8)
+    int count = qMin(8, daySlots.size());
+    for (int i = 0; i < count; ++i) {
+        const WeatherData& slot = daySlots[i];
+        QDateTime slotTime = QDateTime::fromSecsSinceEpoch(slot._dt);
 
-            _detailHourTimeLabels[i]->setText(slotTime.time().toString("hh:mm"));
-
-            _detailHourIconLabels[i]->setPixmap(QPixmap(":/icons/icons/" + slot._icon + ".png"));
-
-            _detailHourTemperatureLabels[i]->setText(FormatTemperature(slot._temperature));
-        }
-        else {
-            // Если слотов в сутках оказалось меньше 9
-            // заполняем оставшиеся ячейки прочерками, чтобы сохранить верстку.
-            _detailHourTimeLabels[i]->setText("--:--");
-            _detailHourIconLabels[i]->setPixmap(QPixmap()); // Очищаем иконку
-            _detailHourTemperatureLabels[i]->setText("--");
-        }
+        _detailHourTimeLabels[i]->setText(slotTime.time().toString("hh:mm"));
+        _detailHourIconLabels[i]->setPixmap(QPixmap(":/icons/icons/" + slot._icon + ".png"));
+        _detailHourTemperatureLabels[i]->setText(FormatTemperature(slot._temperature));
     }
 }
 
@@ -496,7 +524,9 @@ void MainWindow::ShowTodayWeather(bool isNewData) {
         NoInternet();
     }
 
-    _ui->stackedWidget->setCurrentIndex(2);
+    if (_ui->stackedWidget->currentIndex() == 0) {
+        _ui->stackedWidget->setCurrentIndex(2);
+    }
     _ui->backButton->show();
     _ui->lineEditCityName->clear();
 }
@@ -517,14 +547,20 @@ void MainWindow::ShowForecast(bool isNewData) {
         _iconForecastLabels[i]->setPixmap(QPixmap(":/icons/icons/" + day._icon + ".png"));
     }
 
-    if (isNewData) {
+    QDate firstForecastDate = QDateTime::fromSecsSinceEpoch(_forecastList.first()._dt).date();
+
+    if (firstForecastDate == QDate::currentDate()) {
         _dateForecastLabels[0]->setText("Сегодня\n" + fiveDaysList[0]._date.split('\n').last());
+    }
+
+    if (isNewData) {
         _ui->infoLabel_2->clear();
         _ui->cityNameButton->setEnabled(true);
     } else {
         NoInternet();
     }
 
+    OnDayFrameClicked(0);
     ShowChart(fiveDaysList);
 }
 
@@ -554,6 +590,7 @@ void MainWindow::NoInternet(){
         _ui->stackedWidget->setCurrentIndex(2);
     }
     qDebug() << "Нет Интернет соединения";
+    _wasInternetAvailable = false;
 }
 
 
@@ -563,6 +600,11 @@ void MainWindow::InternetIsWorking(){
     _ui->cityNameButton->setEnabled(true);
     _ui->editApiKeyButton->setEnabled(true);
     qDebug() << "Интернет соединение есть";
+    if(!_wasInternetAvailable){
+        _weatherService->RequestData();
+        _timerWeather->start(TIMER_WEATHER_MS);
+    }
+    _wasInternetAvailable = true;
 }
 
 
@@ -597,9 +639,12 @@ QString MainWindow::FormatWindSpeed(qreal speed) const {
 
 
 QString MainWindow::FormatWindDirection(qreal deg) const {
+    if (qIsNaN(deg) || deg < 0.0 || deg > 360.0) {
+        return "—";
+    }
     if (deg >= 337.5 || deg <  22.5)  return "С";
-    if (deg >=  22.5 && deg <  67.5)  return "СВ";
-    if (deg >=  67.5 && deg < 112.5)  return "В";
+    if (deg  >= 22.5 && deg <  67.5)  return "СВ";
+    if (deg  >= 67.5 && deg < 112.5)  return "В";
     if (deg >= 112.5 && deg < 157.5)  return "ЮВ";
     if (deg >= 157.5 && deg < 202.5)  return "Ю";
     if (deg >= 202.5 && deg < 247.5)  return "ЮЗ";
@@ -644,12 +689,11 @@ void MainWindow::OnTimerCheckInternetTick(){
 void MainWindow::SetStyle(const QString& theme) {
     if (theme == "dark") {
         this->setStyleSheet(R"(
-            /* основной фон */
-            QMainWindow, #centralwidget {
+            MainWindow, QMainWindow, #centralwidget, #centralWidget, #stackedWidget {
                 background-color: rgb(44, 44, 44);
             }
 
-            /* текст */
+            /* Текст */
             QLabel {
                 background-color: transparent;
                 color: #e0e0e0;
@@ -660,7 +704,6 @@ void MainWindow::SetStyle(const QString& theme) {
                 font-weight: bold;
             }
 
-            /* поля ввода */
             QLineEdit#lineEditCityName, QLineEdit#apiKeyLineEdit {
                 background-color: #3a3a3a;
                 color: #ffffff;
@@ -670,32 +713,51 @@ void MainWindow::SetStyle(const QString& theme) {
                 padding: 0px 10px;
             }
 
-            QLineEdit#lineEditCityName, QLineEdit#apiKeyLineEdit:focus {
+            QLineEdit#lineEditCityName:focus, QLineEdit#apiKeyLineEdit:focus {
                 border: 1px solid #00a8ff;
             }
 
-            /* кнопки */
-            QPushButton {
+            QPushButton, QToolButton {
                 background-color: #3a3a3a;
                 color: #ffffff;
                 border: 1px solid #555555;
                 border-radius: 6px;
+                padding: 4px 12px;
             }
 
-            QPushButton:hover {
+            QPushButton:hover, QToolButton:hover {
                 background-color: #4a4a4a;
                 border: 1px solid #00a8ff;
             }
 
-            QPushButton:pressed {
+            QPushButton:pressed, QToolButton:pressed {
                 background-color: #2b2b2b;
             }
 
             QRadioButton {
-                color: #fff;
+                color: #ffffff;
+                padding: 4px;
             }
 
-            /* frame */
+            QRadioButton::indicator {
+                width: 14px;
+                height: 14px;
+                border-radius: 8px;
+                border: 2px solid #777777;
+                background-color: #3a3a3a;
+            }
+
+            QRadioButton::indicator:hover {
+                border: 2px solid #00a8ff;
+            }
+
+            QRadioButton::indicator:checked {
+                border: 2px solid #00a8ff;
+                background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,
+                                                stop:0 #00a8ff, stop:0.5 #00a8ff,
+                                                stop:0.6 #3a3a3a, stop:1 #3a3a3a);
+            }
+
             #suggestFrame, #weatherTodayFrame, #forecastFrame, #detailFrame, #detailDateFrame, #frame {
                 background-color: #323232;
                 border: 1px solid #444444;
@@ -710,70 +772,70 @@ void MainWindow::SetStyle(const QString& theme) {
     }
     else {
         this->setStyleSheet(R"(
-            /* основной фон */
-            QMainWindow, #stackedWidget {
+            MainWindow, QMainWindow, #centralwidget, #centralWidget, #stackedWidget {
                 background-color: #a8a8a8;
             }
 
-            /* текст */
             QLabel {
                 background-color: transparent;
-                color: #000;
+                color: #000000;
             }
 
             #tempLabel {
-                color: #000;
+                color: #000000;
                 font-weight: bold;
             }
 
-            /* поля ввода */
             QLineEdit#lineEditCityName, QLineEdit#apiKeyLineEdit {
                 background-color: #979797;
-                color: #000;
+                color: #000000;
                 placeholder-text-color: #1a1a1a;
                 border: 1px solid #555555;
                 border-radius: 8px;
                 padding: 0px 10px;
             }
 
-            /* кнопки */
-            QPushButton {
+            QPushButton, QToolButton {
                 background-color: #979797;
                 color: #000000;
                 border: 1px solid #555555;
                 border-radius: 6px;
+                padding: 4px 12px;
             }
 
-            QToolButton {
-                background-color: #979797;
-                color: #000000;
-                border: 1px solid #555555;
-                border-radius: 6px;
-            }
-
-            QPushButton:hover {
+            QPushButton:hover, QToolButton:hover {
                 background-color: #757575;
                 border: 1px solid #00a8ff;
             }
 
-            QToolButton:hover {
-                background-color: #757575;
-                border: 1px solid #00a8ff;
-            }
-
-            QPushButton:pressed {
-                background-color: #595959;
-            }
-
-            QToolButton:pressed {
+            QPushButton:pressed, QToolButton:pressed {
                 background-color: #595959;
             }
 
             QRadioButton {
                 color: #000000;
+                padding: 4px;
             }
 
-            /* frame */
+            QRadioButton::indicator {
+                width: 14px;
+                height: 14px;
+                border-radius: 8px;
+                border: 2px solid #555555;
+                background-color: #ffffff;
+            }
+
+            QRadioButton::indicator:hover {
+                border: 2px solid #00a8ff;
+            }
+
+            QRadioButton::indicator:checked {
+                border: 2px solid #00a8ff;
+                background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,
+                                                stop:0 #00a8ff, stop:0.5 #00a8ff,
+                                                stop:0.6 #ffffff, stop:1 #ffffff);
+            }
+
             #suggestFrame, #weatherTodayFrame, #forecastFrame, #detailFrame, #detailDateFrame, #frame {
                 background-color: #979797;
                 border: 1px solid #444444;
@@ -785,5 +847,39 @@ void MainWindow::SetStyle(const QString& theme) {
                 border: none;
             }
         )");
+    }
+
+    if (QCompleter* completer = _ui->lineEditCityName->completer()) {
+        if (QAbstractItemView* popup = completer->popup()) {
+            if (theme == "dark") {
+                popup->setStyleSheet(R"(
+                    QAbstractItemView {
+                        background-color: #505050;
+                        color: #ffffff;
+                        border: 1px solid #555555;
+                        border-radius: 6px;
+                        selection-background-color: #00a8ff;
+                        selection-color: #ffffff;
+                    }
+                    QAbstractItemView::item {
+                        padding: 6px 10px;
+                    }
+                )");
+            } else {
+                popup->setStyleSheet(R"(
+                    QAbstractItemView {
+                        background-color: #7a7a7a;
+                        color: #000000;
+                        border: 1px solid #555555;
+                        border-radius: 6px;
+                        selection-background-color: #00a8ff;
+                        selection-color: #ffffff;
+                    }
+                    QAbstractItemView::item {
+                        padding: 6px 10px;
+                    }
+                )");
+            }
+        }
     }
 }

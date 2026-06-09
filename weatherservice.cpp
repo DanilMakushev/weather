@@ -141,12 +141,37 @@ void WeatherService::OnForecastReplyFinished(const QJsonObject& currentWeatherOb
 
 
 void WeatherService::ValidateApiKey(const QString& key) {
-    const QString testUrl = QString("http://ru.api.openweathermap.org/data/2.5/weather?q=London&appid=%1").arg(key);
+    const QString testUrl = QString("http://ru.api.openweathermap.org/data/2.5/weather?q=Moscow&appid=%1").arg(key);
     QNetworkReply* reply  = _networkManager->get(QNetworkRequest(QUrl(testUrl)));
+
+    QTimer* timeoutTimer = new QTimer(reply);
+    timeoutTimer->setSingleShot(true);
+
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-        emit ApiKeyValidationResult(reply->error() == QNetworkReply::NoError);
+        if (reply->error() == QNetworkReply::NoError) {
+            // Успешный запрос
+            emit ApiKeyValidationResult(true, "");
+        }
+        else if (reply->error() == QNetworkReply::OperationCanceledError) {
+            // Сработал таймаут
+            emit ApiKeyValidationResult(false, "Время ответа истекло, повторите позже");
+        }
+        else {
+            // Любая другая ошибка сервера
+            emit ApiKeyValidationResult(false, "Введен некорректный API ключ");
+        }
+
         reply->deleteLater();
     });
+
+    // Логика работы таймера таймаута
+    connect(timeoutTimer, &QTimer::timeout, reply, [reply]() {
+        if (reply->isRunning()) {
+            reply->abort();
+        }
+    });
+
+    timeoutTimer->start(5000);
 }
 
 
@@ -160,7 +185,10 @@ QList<ForecastData> WeatherService::AggregateForecastByDay(const QList<WeatherDa
     QMap<QString, QList<WeatherData>> groupedByDate;
 
     for (const WeatherData& item : list) {
-        const QString dateKey = QDateTime::fromSecsSinceEpoch(item._dt).date().toString("yyyy-MM-dd");
+        // Пропускаем слоты с невалидным временем
+        if (item._dt <= 0) continue;
+        const QString dateKey = QDateTime::fromSecsSinceEpoch(item._dt)
+                                    .date().toString("yyyy-MM-dd");
         groupedByDate[dateKey].append(item);
     }
 

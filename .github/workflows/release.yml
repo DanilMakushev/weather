@@ -46,23 +46,23 @@ jobs:
 
       - name: Prepare Release Folder & Deploy
         run: |
-          mkdir weather_app
+          mkdir -p weather_app
           cp build/weather_app.exe weather_app/
 
+          # и копируем ПРЯМО в корень weather_app/, где лежит exe-файл
           if [ -f "data/cities.db" ]; then
             cp data/cities.db weather_app/
           else
-            echo "Ошибка: data/cities.db не найден"
+            echo "Ошибка: data/cities.db не найден в репозитории"
             exit 1
           fi
 
-          # Разворачиваем плагины Qt (библиотеки компилятора пропускаем флагом)
           /mingw64/bin/windeployqt6.exe --no-translations --no-compiler-runtime weather_app/weather_app.exe
 
-          # чистый сбор всех зависимостей MinGW через basename
-          ntldd -R weather_app/weather_app.exe \
+          find weather_app -type f \( -name "*.exe" -o -name "*.dll" \) -exec ntldd -R {} + \
             | grep -i 'mingw64' \
             | awk '{print $3}' \
+            | sort -u \
             | while read -r path; do
                 filename=$(basename "$path")
                 cp -n "/mingw64/bin/$filename" weather_app/ 2>/dev/null || true

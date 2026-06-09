@@ -31,7 +31,7 @@ private slots:
     void OnWeatherTodayListReady(const QList<WeatherData>& list);
     void OnForecastListReady(const QList<WeatherData>& list);
     void OnCityRegionAutoReady(const QString& city, const QString& region);
-    void OnApiKeyValidationResult(bool success);
+    void OnApiKeyValidationResult(bool success, const QString& errorMsg);
 
     // Слоты кнопок UI
     void OnConfirmApiKeyClicked();
@@ -113,4 +113,10 @@ private:
     const QString FILE_FORECAST = "forecast";
 
     bool eventFilter(QObject *obj, QEvent *event) override;
+<<<<<<< Updated upstream
+=======
+
+    // Флаги
+    bool _wasInternetAvailable = true; // Хранит статус интернета на предыдущем шаге
+>>>>>>> Stashed changes
 };

@@ -39,7 +39,7 @@ signals:
     void WeatherTodayListReady(const QList<WeatherData>& weatherTodayList);
     void ForecastListReady(const QList<WeatherData>& forecastList);
     void CityRegionAutoReady(const QString& city, const QString& region);
-    void ApiKeyValidationResult(bool success);
+    void ApiKeyValidationResult(bool success, const QString& errorMsg);
     void ErrorOccurred();
 
 private:
