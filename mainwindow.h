@@ -113,4 +113,6 @@ private:
     const QString FILE_FORECAST = "forecast";
 
     bool eventFilter(QObject *obj, QEvent *event) override;
+
+    friend class MainWindowTest;
 };

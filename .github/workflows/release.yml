@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/github_actions
 
 env:
   Version_Release: "0.1"

@@ -64,4 +64,5 @@ private:
 
     const QString _detectCityUrl = "http://ip-api.com/json/?lang=ru";
     const QString _openWeatherMapUrl = "http://ru.api.openweathermap.org/data/2.5/";
+    friend class WeatherServiceTest;
 };
